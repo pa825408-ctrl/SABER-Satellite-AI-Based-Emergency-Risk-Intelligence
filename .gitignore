@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 
 data/satellite/
+
+*.pth
+data/dataset/
+data/processed/test_predictions*.csv
