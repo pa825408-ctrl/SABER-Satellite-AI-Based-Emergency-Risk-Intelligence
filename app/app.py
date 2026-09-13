@@ -513,10 +513,662 @@ try:
     st.success(
         f"Historical cyclone analysis loaded: "
         f"{selected_cyclone}"
-    )
-
+    )     
 except Exception as e:
 
     st.error(
         f"Could not load cyclone track data: {e}"
     )
+
+# ==========================================
+# CYCLONE RISK / IMPACT ZONES
+# ==========================================
+
+st.divider()
+
+st.header("⚠️ Estimated Cyclone Impact Zones")
+
+st.info(
+    "Risk zones are experimental estimates for "
+    "prototype demonstration and should not be "
+    "used for real-world evacuation decisions."
+)
+
+
+# ------------------------------------------
+# USE MAXIMUM WIND
+# ------------------------------------------
+
+if pd.notna(max_wind):
+
+    wind = float(max_wind)
+
+else:
+
+    wind = 30.0
+
+
+# ------------------------------------------
+# DETERMINE ZONE RADII
+# ------------------------------------------
+
+if wind < 34:
+
+    inner_radius = 30
+    middle_radius = 60
+    outer_radius = 100
+
+elif wind < 64:
+
+    inner_radius = 50
+    middle_radius = 100
+    outer_radius = 150
+
+elif wind < 90:
+
+    inner_radius = 75
+    middle_radius = 150
+    outer_radius = 250
+
+else:
+
+    inner_radius = 100
+    middle_radius = 200
+    outer_radius = 300
+
+
+# ------------------------------------------
+# CREATE CIRCLE FUNCTION
+# ------------------------------------------
+
+import math
+
+
+def create_circle(
+    latitude,
+    longitude,
+    radius_km
+):
+
+    points = []
+
+    earth_radius = 6371.0
+
+    for angle in range(0, 361, 5):
+
+        angle_rad = math.radians(angle)
+
+        lat_rad = math.radians(latitude)
+
+        lon_rad = math.radians(longitude)
+
+        distance = radius_km / earth_radius
+
+        new_lat = math.asin(
+            math.sin(lat_rad)
+            * math.cos(distance)
+            +
+            math.cos(lat_rad)
+            * math.sin(distance)
+            * math.cos(angle_rad)
+        )
+
+        new_lon = (
+            lon_rad
+            +
+            math.atan2(
+                math.sin(angle_rad)
+                * math.sin(distance)
+                * math.cos(lat_rad),
+                math.cos(distance)
+                -
+                math.sin(lat_rad)
+                * math.sin(new_lat)
+            )
+        )
+
+        points.append(
+            (
+                math.degrees(new_lat),
+                math.degrees(new_lon)
+            )
+        )
+
+    return points
+
+
+# ------------------------------------------
+# LAST POSITION
+# ------------------------------------------
+
+risk_lat = float(
+    last_point["LAT"]
+)
+
+risk_lon = float(
+    last_point["LON"]
+)
+
+
+# ------------------------------------------
+# CREATE ZONES
+# ------------------------------------------
+
+outer_zone = create_circle(
+    risk_lat,
+    risk_lon,
+    outer_radius
+)
+
+middle_zone = create_circle(
+    risk_lat,
+    risk_lon,
+    middle_radius
+)
+
+inner_zone = create_circle(
+    risk_lat,
+    risk_lon,
+    inner_radius
+)
+
+
+# ------------------------------------------
+# RISK MAP
+# ------------------------------------------
+
+risk_fig = px.scatter_map(
+    cyclone_data,
+    lat="LAT",
+    lon="LON",
+    color="USA_WIND",
+    size="USA_WIND",
+    hover_name="NAME",
+    hover_data={
+        "ISO_TIME": True,
+        "USA_WIND": True,
+        "LAT": True,
+        "LON": True
+    },
+    zoom=4,
+    height=650
+)
+
+
+# ------------------------------------------
+# OUTER ZONE
+# ------------------------------------------
+
+outer_lat = [
+    point[0]
+    for point in outer_zone
+]
+
+outer_lon = [
+    point[1]
+    for point in outer_zone
+]
+
+risk_fig.add_scattermap(
+    lat=outer_lat,
+    lon=outer_lon,
+    mode="lines",
+    fill="toself",
+    fillcolor="rgba(255, 200, 0, 0.15)",
+    line=dict(width=2),
+    name=f"LOW / WATCH ZONE ({outer_radius} km)"
+)
+
+
+# ------------------------------------------
+# MIDDLE ZONE
+# ------------------------------------------
+
+middle_lat = [
+    point[0]
+    for point in middle_zone
+]
+
+middle_lon = [
+    point[1]
+    for point in middle_zone
+]
+
+risk_fig.add_scattermap(
+    lat=middle_lat,
+    lon=middle_lon,
+    mode="lines",
+    fill="toself",
+    fillcolor="rgba(255, 140, 0, 0.20)",
+    line=dict(width=2),
+    name=f"MODERATE ZONE ({middle_radius} km)"
+)
+
+
+# ------------------------------------------
+# INNER ZONE
+# ------------------------------------------
+
+inner_lat = [
+    point[0]
+    for point in inner_zone
+]
+
+inner_lon = [
+    point[1]
+    for point in inner_zone
+]
+
+risk_fig.add_scattermap(
+    lat=inner_lat,
+    lon=inner_lon,
+    mode="lines",
+    fill="toself",
+    fillcolor="rgba(255, 0, 0, 0.25)",
+    line=dict(width=3),
+    name=f"HIGH RISK ZONE ({inner_radius} km)"
+)
+
+
+# ------------------------------------------
+# CYCLONE CENTER
+# ------------------------------------------
+
+risk_fig.add_scattermap(
+    lat=[risk_lat],
+    lon=[risk_lon],
+    mode="markers",
+    marker=dict(
+        size=18
+    ),
+    name="Cyclone Center"
+)
+
+
+# ------------------------------------------
+# MAP SETTINGS
+# ------------------------------------------
+
+risk_fig.update_layout(
+    map=dict(
+        style="open-street-map",
+        center=dict(
+            lat=risk_lat,
+            lon=risk_lon
+        ),
+        zoom=4
+    ),
+    margin=dict(
+        r=0,
+        t=0,
+        l=0,
+        b=0
+    ),
+    legend=dict(
+        orientation="h"
+    )
+)
+
+
+st.plotly_chart(
+    risk_fig,
+    use_container_width=True
+)
+
+
+# ------------------------------------------
+# RISK SUMMARY
+# ------------------------------------------
+
+risk_col1, risk_col2, risk_col3 = st.columns(3)
+
+
+with risk_col1:
+
+    st.metric(
+        "🟡 Watch Zone",
+        f"{outer_radius} km"
+    )
+
+
+with risk_col2:
+
+    st.metric(
+        "🟠 Moderate Zone",
+        f"{middle_radius} km"
+    )
+
+
+with risk_col3:
+
+    st.metric(
+        "🔴 High Risk Zone",
+        f"{inner_radius} km"
+    )
+
+
+st.warning(
+    f"Maximum historical wind: "
+    f"{wind:.0f} knots. "
+    f"Impact zones are prototype estimates."
+)
+ # ==========================================
+# AI-BASED SAFETY RECOMMENDATIONS
+# ==========================================
+
+st.divider()
+
+st.header("🚨 AI-Based Safety Recommendations")
+
+# Use the AI prediction from the satellite image
+try:
+    predicted_wind = float(predicted_intensity)
+except:
+    predicted_wind = wind
+    st.session_state["predicted_wind"] = predicted_wind
+
+
+# ------------------------------------------
+# DETERMINE RISK LEVEL
+# ------------------------------------------
+
+if predicted_wind < 34:
+
+    risk_level = "LOW"
+    risk_icon = "🟢"
+
+    recommendations = [
+        "Continue monitoring official weather updates.",
+        "Keep basic emergency supplies ready.",
+        "Check communication and emergency contact information.",
+        "Avoid unnecessary travel if weather conditions deteriorate."
+    ]
+
+elif predicted_wind < 48:
+
+    risk_level = "MODERATE"
+    risk_icon = "🟡"
+
+    recommendations = [
+        "Monitor official cyclone warnings regularly.",
+        "Secure loose objects around homes and buildings.",
+        "Keep emergency supplies, food, water and medicines ready.",
+        "Avoid coastal areas and unnecessary travel.",
+        "Keep phones and emergency communication devices charged."
+    ]
+
+elif predicted_wind < 64:
+
+    risk_level = "HIGH"
+    risk_icon = "🟠"
+
+    recommendations = [
+        "Follow official cyclone warnings and advisories.",
+        "Secure doors, windows, roofs and outdoor objects.",
+        "Move away from exposed coastal and low-lying areas when advised.",
+        "Prepare emergency food, drinking water, medicines and flashlights.",
+        "Avoid travelling during severe weather.",
+        "Follow evacuation instructions issued by local authorities."
+    ]
+
+else:
+
+    risk_level = "VERY HIGH"
+    risk_icon = "🔴"
+
+    recommendations = [
+        "Follow official emergency and cyclone warnings immediately.",
+        "Evacuate when instructed by local authorities.",
+        "Move to designated shelters or safer elevated locations.",
+        "Stay away from beaches, flooded roads and exposed coastal areas.",
+        "Keep emergency supplies, important documents and medicines ready.",
+        "Do not attempt to travel through floodwater or severe storm conditions.",
+        "Maintain communication with emergency services and local authorities."
+    ]
+
+
+# ------------------------------------------
+# DISPLAY RISK
+# ------------------------------------------
+
+st.subheader(
+    f"{risk_icon} Current AI Risk Level: {risk_level}"
+)
+
+st.metric(
+    "AI Estimated Wind Intensity",
+    f"{predicted_wind:.1f} knots"
+)
+
+
+# ------------------------------------------
+# RECOMMENDATIONS
+# ------------------------------------------
+
+st.write("### Recommended Actions")
+
+for recommendation in recommendations:
+
+    st.write(
+        f"• {recommendation}"
+    )
+
+
+# ------------------------------------------
+# DISCLAIMER
+# ------------------------------------------
+
+st.info(
+    "⚠️ These recommendations are prototype AI-generated "
+    "guidance. Always follow official warnings and "
+    "instructions from authorized disaster-management "
+    "and weather authorities."
+)
+
+# ==========================================
+# SIH EXECUTIVE SUMMARY
+# ==========================================
+
+st.divider()
+
+st.header("📊 SIH Cyclone Intelligence Summary")
+
+# ------------------------------------------
+# SUMMARY VALUES
+# ------------------------------------------
+
+final_ai_wind = float(
+    st.session_state.get("predicted_wind", 0.0)
+)
+
+try:
+    final_historical_wind = float(max_wind)
+except:
+    final_historical_wind = 0.0
+
+try:
+    final_lat = float(risk_lat)
+    final_lon = float(risk_lon)
+except:
+    final_lat = 0.0
+    final_lon = 0.0
+
+
+# ------------------------------------------
+# SUMMARY CARDS
+# ------------------------------------------
+
+summary1, summary2, summary3, summary4 = st.columns(4)
+
+with summary1:
+    st.metric(
+        "🤖 AI Intensity",
+        f"{final_ai_wind:.1f} kt"
+    )
+
+with summary2:
+    st.metric(
+        "🚨 Risk Level",
+        risk_level
+    )
+
+with summary3:
+    st.metric(
+        "🔴 High Risk Radius",
+        f"{inner_radius} km"
+    )
+
+with summary4:
+    st.metric(
+        "📍 Position",
+        f"{final_lat:.2f}, {final_lon:.2f}"
+    )
+
+
+# ------------------------------------------
+# SYSTEM PIPELINE
+# ------------------------------------------
+
+st.subheader("🔄 AI Decision Pipeline")
+
+st.write(
+    "🛰️ INSAT-3D IR Satellite Image"
+)
+
+st.write(
+    "↓"
+)
+
+st.write(
+    "🤖 ResNet18 V2 Cyclone Intensity Estimation"
+)
+
+st.write(
+    "↓"
+)
+
+st.write(
+    "💨 Wind Intensity → Risk Assessment"
+)
+
+st.write(
+    "↓"
+)
+
+st.write(
+    "🗺️ Historical Cyclone Track Analysis"
+)
+
+st.write(
+    "↓"
+)
+
+st.write(
+    "⚠️ Estimated Impact Zones"
+)
+
+st.write(
+    "↓"
+)
+
+st.write(
+    "🚨 Safety Recommendations"
+)
+
+
+# ------------------------------------------
+# REPORT GENERATION
+# ------------------------------------------
+
+report = f"""
+SIH26070 – AI-BASED CYCLONE MONITORING SYSTEM
+================================================
+
+SYSTEM SUMMARY
+---------------
+
+Model:
+ResNet18 V2
+
+Input:
+INSAT-3D Infrared Satellite Image
+
+AI Prediction:
+{final_ai_wind:.1f} knots
+
+Risk Level:
+{risk_level}
+
+Historical Cyclone:
+{selected_cyclone}
+
+Maximum Historical Wind:
+{final_historical_wind:.1f} knots
+
+Last Recorded Position:
+Latitude: {final_lat:.2f}
+Longitude: {final_lon:.2f}
+
+Estimated Impact Zones
+----------------------
+
+Watch Zone:
+{outer_radius} km
+
+Moderate Risk Zone:
+{middle_radius} km
+
+High Risk Zone:
+{inner_radius} km
+
+
+SYSTEM PIPELINE
+---------------
+
+1. INSAT-3D satellite imagery
+2. AI-based cyclone intensity estimation
+3. Risk-level assessment
+4. Historical cyclone track analysis
+5. Geographic impact-zone visualization
+6. Safety recommendation generation
+
+
+SAFETY GUIDANCE
+---------------
+
+"""
+
+for item in recommendations:
+    report += f"- {item}\n"
+
+report += """
+
+IMPORTANT DISCLAIMER
+--------------------
+
+This system is an experimental SIH prototype.
+AI predictions and impact zones are intended for
+demonstration and decision-support research only.
+
+Real-world emergency decisions must follow official
+weather warnings and instructions from authorized
+disaster-management authorities.
+"""
+
+
+# ------------------------------------------
+# DOWNLOAD BUTTON
+# ------------------------------------------
+
+st.subheader("📥 Download Analysis Report")
+
+st.download_button(
+    label="⬇️ Download SIH Cyclone Report",
+    data=report,
+    file_name="SIH26070_Cyclone_Analysis_Report.txt",
+    mime="text/plain"
+)
+
+st.success(
+    "SIH prototype analysis report is ready."
+)
