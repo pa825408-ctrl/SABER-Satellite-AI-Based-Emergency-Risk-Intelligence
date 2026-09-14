@@ -101,16 +101,11 @@ transform = transforms.Compose([
 # HEADER
 # ==========================================
 
-st.title("🌀 Cyclone AI Monitoring System")
-
-st.markdown(
-    """
-    ### AI-based Cyclone Intensity Estimation
-
-    Upload an **INSAT-3D infrared satellite image** and
-    the AI model will estimate cyclone intensity.
-    """
-)
+st.markdown("""
+# 🛰️ SABER
+### Satellite AI-Based Emergency Risk Intelligence
+""")
+st.subheader("AI-based Cyclone Intensity Estimation")
 
 
 st.divider()
@@ -961,7 +956,7 @@ st.warning(
 
 st.divider()
 
-st.header("🚨 AI-Based Safety Recommendations")
+st.header("🚨 Safety Recommendations")
 
 # Use the AI prediction from the satellite image
 try:
@@ -1036,7 +1031,7 @@ else:
 # ------------------------------------------
 
 st.subheader(
-    f"{risk_icon} Current AI Risk Level: {risk_level}"
+    f"{risk_icon} Current Risk Level: {risk_level}"
 )
 
 st.metric(
@@ -1075,7 +1070,7 @@ st.info(
 
 st.divider()
 
-st.header("📊 SIH Cyclone Intelligence Summary")
+st.header("📊 Cyclone Intelligence Summary")
 
 # ------------------------------------------
 # SUMMARY VALUES
