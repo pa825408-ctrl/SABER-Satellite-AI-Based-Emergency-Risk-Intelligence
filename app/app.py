@@ -217,6 +217,7 @@ if uploaded_file is not None:
         * (max_intensity - min_intensity)
         + min_intensity
     )
+    st.session_state["predicted_wind"] = float(prediction)
 
 
     # Keep within dataset range
@@ -311,32 +312,31 @@ TRACK_FILE = (
     / "cyclone_tracks.csv"
 )
 
-try:
 
-    tracks = pd.read_csv(TRACK_FILE)
+tracks = pd.read_csv(TRACK_FILE)
 
     # Convert columns
-    tracks["ISO_TIME"] = pd.to_datetime(
+tracks["ISO_TIME"] = pd.to_datetime(
         tracks["ISO_TIME"],
         errors="coerce"
     )
 
-    tracks["LAT"] = pd.to_numeric(
+tracks["LAT"] = pd.to_numeric(
         tracks["LAT"],
         errors="coerce"
     )
 
-    tracks["LON"] = pd.to_numeric(
+tracks["LON"] = pd.to_numeric(
         tracks["LON"],
         errors="coerce"
     )
 
-    tracks["USA_WIND"] = pd.to_numeric(
+tracks["USA_WIND"] = pd.to_numeric(
         tracks["USA_WIND"],
         errors="coerce"
     )
 
-    tracks = tracks.dropna(
+tracks = tracks.dropna(
         subset=["LAT", "LON"]
     )
 
@@ -344,24 +344,24 @@ try:
     # CYCLONE SELECTION
     # --------------------------------------
 
-    cyclone_names = sorted(
+cyclone_names = sorted(
         tracks["NAME"]
         .dropna()
         .astype(str)
         .unique()
     )
 
-    selected_cyclone = st.selectbox(
+selected_cyclone = st.selectbox(
         "Select a historical cyclone",
         cyclone_names
     )
 
-    cyclone_data = tracks[
+cyclone_data = tracks[
         tracks["NAME"].astype(str)
         == selected_cyclone
     ].copy()
 
-    cyclone_data = cyclone_data.sort_values(
+cyclone_data = cyclone_data.sort_values(
         "ISO_TIME"
     )
 
@@ -369,29 +369,30 @@ try:
     # STATISTICS
     # --------------------------------------
 
-    max_wind = cyclone_data["USA_WIND"].max()
+max_wind = cyclone_data["USA_WIND"].max()
 
-    min_wind = cyclone_data["USA_WIND"].min()
+min_wind = cyclone_data["USA_WIND"].min()
 
-    first_date = cyclone_data["ISO_TIME"].min()
+first_date = cyclone_data["ISO_TIME"].min()
 
-    last_date = cyclone_data["ISO_TIME"].max()
+last_date = cyclone_data["ISO_TIME"].max()
 
-    last_point = cyclone_data.iloc[-1]
+last_point = cyclone_data.iloc[-1]
+    
 
     # --------------------------------------
     # DISPLAY STATISTICS
     # --------------------------------------
 
-    col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4 = st.columns(4)
 
-    with col1:
+with col1:
         st.metric(
             "🌪️ Cyclone",
             selected_cyclone
         )
 
-    with col2:
+with col2:
         if pd.notna(max_wind):
             st.metric(
                 "💨 Maximum Wind",
@@ -403,13 +404,13 @@ try:
                 "N/A"
             )
 
-    with col3:
+with col3:
         st.metric(
             "📍 Track Points",
             len(cyclone_data)
         )
 
-    with col4:
+with col4:
         st.metric(
             "📅 Duration",
             f"{first_date.strftime('%d %b')} – "
@@ -420,11 +421,33 @@ try:
     # MAP
     # --------------------------------------
 
-    st.subheader(
+st.subheader(
         "Cyclone Movement and Intensity"
     )
 
-    fig = px.scatter_map(
+# Clean cyclone data before plotting
+cyclone_data = cyclone_data.copy()
+
+cyclone_data["LAT"] = pd.to_numeric(
+    cyclone_data["LAT"],
+    errors="coerce"
+)
+
+cyclone_data["LON"] = pd.to_numeric(
+    cyclone_data["LON"],
+    errors="coerce"
+)
+
+cyclone_data["USA_WIND"] = pd.to_numeric(
+    cyclone_data["USA_WIND"],
+    errors="coerce"
+)
+
+cyclone_data = cyclone_data.dropna(
+    subset=["LAT", "LON", "USA_WIND"]
+)
+
+fig = px.scatter_map(
         cyclone_data,
         lat="LAT",
         lon="LON",
@@ -442,17 +465,17 @@ try:
     )
 
     # Add connecting track line
-    fig.add_scattermap(
-        lat=cyclone_data["LAT"],
-        lon=cyclone_data["LON"],
-        mode="lines",
-        line=dict(
-            width=3
-        ),
-        name="Cyclone Track"
-    )
-
-    fig.update_layout(
+# Add connecting track line
+fig.add_scattermap(
+    lat=cyclone_data["LAT"],
+    lon=cyclone_data["LON"],
+    mode="lines",
+    line=dict(
+        width=3
+    ),
+    name="Cyclone Track"
+)
+fig.update_layout(
         map=dict(
             style="open-street-map"
         ),
@@ -467,7 +490,7 @@ try:
         )
     )
 
-    st.plotly_chart(
+st.plotly_chart(
         fig,
         use_container_width=True
     )
@@ -476,13 +499,13 @@ try:
     # LAST POSITION
     # --------------------------------------
 
-    st.subheader(
+st.subheader(
         "📍 Last Recorded Position"
     )
 
-    position_col1, position_col2 = st.columns(2)
+position_col1, position_col2 = st.columns(2)
 
-    with position_col1:
+with position_col1:
 
         st.write(
             f"**Latitude:** "
@@ -494,7 +517,7 @@ try:
             f"{last_point['LON']:.2f}"
         )
 
-    with position_col2:
+with position_col2:
 
         if pd.notna(last_point["ISO_TIME"]):
 
@@ -510,19 +533,99 @@ try:
                 f"{last_point['USA_WIND']:.0f} knots"
             )
 
-    st.success(
+st.success(
         f"Historical cyclone analysis loaded: "
         f"{selected_cyclone}"
     )     
-except Exception as e:
 
-    st.error(
-        f"Could not load cyclone track data: {e}"
-    )
+    
 
 # ==========================================
 # CYCLONE RISK / IMPACT ZONES
 # ==========================================
+# ============================================
+# CURRENT CYCLONE MONITORING
+# ============================================
+
+st.divider()
+
+st.header("🛰️ AI-Assisted Cyclone Monitoring Simulation")
+
+st.info(
+    "This module replays historical cyclone data to demonstrate how "
+    "SABER can combine satellite-based AI intensity estimation with "
+    "cyclone-track information for risk assessment. This is a "
+    "prototype simulation and not a live warning service."
+)
+
+# Use the existing AI prediction variable
+predicted_intensity = float(
+    st.session_state.get("predicted_wind", 0.0)
+)
+monitor_wind = predicted_intensity
+
+
+# Determine monitoring risk level
+if monitor_wind < 34:
+    monitor_risk = "LOW"
+elif monitor_wind < 48:
+    monitor_risk = "MODERATE"
+elif monitor_wind < 64:
+    monitor_risk = "HIGH"
+else:
+    monitor_risk = "VERY HIGH"
+
+monitor_col1, monitor_col2, monitor_col3, monitor_col4 = st.columns(4)
+
+with monitor_col1:
+    st.metric(
+        "Cyclone",
+        selected_cyclone
+    )
+
+with monitor_col2:
+    st.metric(
+        "AI-Estimated Intensity",
+        f"{monitor_wind:.1f} kt"
+    )
+
+with monitor_col3:
+    st.metric(
+        "Historical Recorded Wind",
+        f"{float(last_point['USA_WIND']):.1f} kt"
+    )
+
+with monitor_col4:
+    st.metric(
+        "Risk Level",
+        monitor_risk
+    )
+
+st.markdown("### 📍 Last Recorded Historical Position")
+
+position_col1, position_col2, position_col3 = st.columns(3)
+
+with position_col1:
+    st.metric(
+        "Latitude",
+        f"{float(last_point['LAT']):.2f}°"
+    )
+
+with position_col2:
+    st.metric(
+        "Longitude",
+        f"{float(last_point['LON']):.2f}°"
+    )
+
+with position_col3:
+    st.metric(
+        "Wind",
+        f"{float(last_point['USA_WIND']):.1f} kt"
+    )
+
+st.caption(
+    f"Last recorded observation: {last_point['ISO_TIME']}"
+)
 
 st.divider()
 
@@ -552,19 +655,19 @@ else:
 # DETERMINE ZONE RADII
 # ------------------------------------------
 
-if wind < 34:
+if monitor_wind < 34:
 
     inner_radius = 30
     middle_radius = 60
     outer_radius = 100
 
-elif wind < 64:
+elif monitor_wind  < 64:
 
     inner_radius = 50
     middle_radius = 100
     outer_radius = 150
 
-elif wind < 90:
+elif monitor_wind < 90:
 
     inner_radius = 75
     middle_radius = 150
@@ -862,6 +965,7 @@ st.header("🚨 AI-Based Safety Recommendations")
 
 # Use the AI prediction from the satellite image
 try:
+    
     predicted_wind = float(predicted_intensity)
 except:
     predicted_wind = wind
